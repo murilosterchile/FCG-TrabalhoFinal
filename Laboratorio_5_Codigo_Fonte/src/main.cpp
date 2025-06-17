@@ -384,13 +384,13 @@ int main(int argc, char* argv[])
         glm::vec4 u = crossproduct(camera_up_vector, w);
 
         if (g_WPressed)
-            camera_position_act -= w * speed * 0.5f;
+            camera_position_act -= w * speed * 0.25f;
         if (g_SPressed)
-            camera_position_act += w * speed * 0.5f;
+            camera_position_act += w * speed * 0.25f;
         if (g_APressed)
-            camera_position_act -=  u * speed * 0.5f;
+            camera_position_act -=  u * speed * 0.25f;
         if (g_DPressed)
-            camera_position_act += u * speed * 0.5f;
+            camera_position_act += u * speed * 0.25f;
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
@@ -483,7 +483,7 @@ int main(int argc, char* argv[])
 
         // cubo
         int gridSizeX = 15;
-        int gridSizeZ = 500;
+        int gridSizeZ = 250;
         float spacing = 1.01f;
         int wallHeight = 3; // distância entre cubos
 
