@@ -299,7 +299,8 @@ int main(int argc, char* argv[])
 
     // Carregamos duas imagens para serem utilizadas como textura
     LoadTextureImage("../../data/tc-earth_daymap_surface.jpg");      // TextureImage0
-    LoadTextureImage("../../data/tc-earth_nightmap_citylights.gif"); // TextureImage1
+    LoadTextureImage("../../data/tc-earth_nightmap_citylights.gif");
+    LoadTextureImage("../../data/dourado.jpg");
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/sphere.obj");
@@ -313,6 +314,10 @@ int main(int argc, char* argv[])
     ObjModel planemodel("../../data/plane.obj");
     ComputeNormals(&planemodel);
     BuildTrianglesAndAddToVirtualScene(&planemodel);
+
+    ObjModel cubemodel("../../data/cube.obj");
+    ComputeNormals(&cubemodel);
+    BuildTrianglesAndAddToVirtualScene(&cubemodel);
 
     if ( argc > 1 )
     {
@@ -378,7 +383,7 @@ int main(int argc, char* argv[])
         // Note que, no sistema de coordenadas da câmera, os planos near e far
         // estão no sentido negativo! Veja slides 176-204 do documento Aula_09_Projecoes.pdf.
         float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = -10.0f; // Posição do "far plane"
+        float farplane  = -500.0f; // Posição do "far plane"
 
         if (g_UsePerspectiveProjection)
         {
@@ -412,8 +417,9 @@ int main(int argc, char* argv[])
         #define SPHERE 0
         #define BUNNY  1
         #define PLANE  2
+        #define CUBE   3
 
-        // Desenhamos o modelo da esfera
+       /* // Desenhamos o modelo da esfera
         model = Matrix_Translate(-1.0f,0.0f,0.0f)
               * Matrix_Rotate_Z(0.6f)
               * Matrix_Rotate_X(0.2f)
@@ -433,7 +439,41 @@ int main(int argc, char* argv[])
         model = Matrix_Translate(0.0f,-1.1f,0.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, PLANE);
-        DrawVirtualObject("the_plane");
+        DrawVirtualObject("the_plane");*/
+
+        // cubo
+        int gridSizeX = 15;
+        int gridSizeZ = 500;
+        float spacing = 1.01f;
+        int wallHeight = 3; // distância entre cubos
+
+        for (int x = 0; x < gridSizeX; ++x) {
+            for (int z = 0; z < gridSizeZ; ++z) {
+                glm::mat4 model = glm::mat4(1.0f); // <- reinicializa para identidade
+
+                model = glm::translate(model, glm::vec3(x * spacing, 0.0f, z * spacing));
+
+                glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+                glUniform1i(g_object_id_uniform, CUBE);
+                DrawVirtualObject("the_cube");}}
+
+        for (int z = 0; z < gridSizeZ; ++z) {
+            for (int y = 1; y <= wallHeight; ++y) {
+                // Parede da esquerda (X = 0)
+                glm::mat4 modelLeft = glm::mat4(1.0f);
+                modelLeft = glm::translate(modelLeft, glm::vec3(0 * spacing, y * spacing, z * spacing));
+                glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(modelLeft));
+                glUniform1i(g_object_id_uniform, CUBE);
+                DrawVirtualObject("the_cube");
+
+                // Parede da direita (X = gridSizeX - 1)
+                glm::mat4 modelRight = glm::mat4(1.0f);
+                modelRight = glm::translate(modelRight, glm::vec3((gridSizeX - 1) * spacing, y * spacing, z * spacing));
+                glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(modelRight));
+                glUniform1i(g_object_id_uniform, CUBE);
+                DrawVirtualObject("the_cube");
+            }
+        }
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
         // terceiro cubo.
@@ -972,7 +1012,7 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
         fprintf(stderr, "%s", output.c_str());
     }
 
-    // Os "Shader Objects" podem ser marcados para deleção após serem linkados 
+    // Os "Shader Objects" podem ser marcados para deleção após serem linkados
     glDeleteShader(vertex_shader_id);
     glDeleteShader(fragment_shader_id);
 
@@ -1074,21 +1114,21 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
-    
+
         // Atualizamos parâmetros da câmera com os deslocamentos
         g_CameraTheta -= 0.01f*dx;
         g_CameraPhi   += 0.01f*dy;
-    
+
         // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
         float phimax = 3.141592f/2;
         float phimin = -phimax;
-    
+
         if (g_CameraPhi > phimax)
             g_CameraPhi = phimax;
-    
+
         if (g_CameraPhi < phimin)
             g_CameraPhi = phimin;
-    
+
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
@@ -1100,11 +1140,11 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
-    
+
         // Atualizamos parâmetros da antebraço com os deslocamentos
         g_ForearmAngleZ -= 0.01f*dx;
         g_ForearmAngleX += 0.01f*dy;
-    
+
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
@@ -1116,11 +1156,11 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
-    
+
         // Atualizamos parâmetros da antebraço com os deslocamentos
         g_TorsoPositionX += 0.01f*dx;
         g_TorsoPositionY -= 0.01f*dy;
-    
+
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
@@ -1347,7 +1387,7 @@ void TextRendering_ShowFramesPerSecond(GLFWwindow* window)
     if ( ellapsed_seconds > 1.0f )
     {
         numchars = snprintf(buffer, 20, "%.2f fps", ellapsed_frames / ellapsed_seconds);
-    
+
         old_seconds = seconds;
         ellapsed_frames = 0;
     }
@@ -1529,4 +1569,3 @@ void PrintObjModelInfo(ObjModel* model)
 
 // set makeprg=cd\ ..\ &&\ make\ run\ >/dev/null
 // vim: set spell spelllang=pt_br :
-
