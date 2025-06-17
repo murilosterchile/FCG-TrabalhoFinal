@@ -224,6 +224,8 @@ GLint g_bbox_max_uniform;
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
 
+bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false;
+
 int main(int argc, char* argv[])
 {
     // Inicializamos a biblioteca GLFW, utilizada para criar uma janela do
@@ -336,6 +338,10 @@ int main(int argc, char* argv[])
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
+
+    glm::vec4 camera_position_act  = glm::vec4(1.0f,2.0f,-2.5f,1.0f);
+    float speed = 1.0f;
+
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
@@ -369,13 +375,27 @@ int main(int argc, char* argv[])
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
         glm::vec4 camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
-        glm::vec4 camera_lookat_l    = glm::vec4(0.0f,0.0f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+        glm::vec4 camera_lookat_l    = glm::vec4(0.0f,1.0f,1.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
-        glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+        glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f);
+
+
+        glm::vec4 w = -camera_view_vector / norm(camera_view_vector);
+        glm::vec4 u = crossproduct(camera_up_vector, w);
+
+        if (g_WPressed)
+            camera_position_act -= w * speed * 0.5f;
+        if (g_SPressed)
+            camera_position_act += w * speed * 0.5f;
+        if (g_APressed)
+            camera_position_act -=  u * speed * 0.5f;
+        if (g_DPressed)
+            camera_position_act += u * speed * 0.5f;
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        glm::mat4 view = Matrix_Camera_View(camera_position_c, camera_view_vector, camera_up_vector);
+        camera_position_act.y = 2.0f;
+        glm::mat4 view = Matrix_Camera_View(camera_position_act, camera_view_vector, camera_up_vector);
 
         // Agora computamos a matriz de Projeção.
         glm::mat4 projection;
@@ -1262,6 +1282,21 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         fprintf(stdout,"Shaders recarregados!\n");
         fflush(stdout);
     }
+
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_W) g_WPressed = true;
+        if (key == GLFW_KEY_S) g_SPressed = true;
+        if (key == GLFW_KEY_A) g_APressed = true;
+        if (key == GLFW_KEY_D) g_DPressed = true;
+    }
+    if (action == GLFW_RELEASE) {
+        if (key == GLFW_KEY_W) g_WPressed = false;
+        if (key == GLFW_KEY_S) g_SPressed = false;
+        if (key == GLFW_KEY_A) g_APressed = false;
+        if (key == GLFW_KEY_D) g_DPressed = false;
+    }
+
+
 }
 
 // Definimos o callback para impressão de erros da GLFW no terminal
