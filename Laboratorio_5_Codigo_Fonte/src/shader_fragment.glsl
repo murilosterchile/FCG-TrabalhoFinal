@@ -23,7 +23,9 @@ uniform mat4 projection;
 #define SPHERE 0
 #define BUNNY  1
 #define PLANE  2
-#define CUBE   3
+#define CUBEXY 3
+#define CUBEXZ 4
+#define WALLXY 5
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -126,7 +128,7 @@ void main()
         U = texcoords.x;
         V = texcoords.y;
     }
-    else if ( object_id == CUBE )
+    else if ( object_id == CUBEXY  )
     {
         float minx = bbox_min.x;
         float maxx = bbox_max.x;
@@ -137,8 +139,37 @@ void main()
         float minz = bbox_min.z;
         float maxz = bbox_max.z;
 
-        U = texcoords.x;
-        V = texcoords.y;
+        U = (position_model.z - minz)/(maxz - minz);
+        V = (position_model.y - miny)/(maxy - miny);
+    }
+    else if ( object_id == CUBEXZ)
+    {
+        float minx = bbox_min.x;
+        float maxx = bbox_max.x;
+
+        float miny = bbox_min.y;
+        float maxy = bbox_max.y;
+
+        float minz = bbox_min.z;
+        float maxz = bbox_max.z;
+
+        U = (position_model.z - minz)/(maxz - minz);
+        V = (position_model.x - minx)/(maxx - minx);
+    }
+
+    else if ( object_id == WALLXY )
+    {
+        float minx = bbox_min.x;
+        float maxx = bbox_max.x;
+
+        float miny = bbox_min.y;
+        float maxy = bbox_max.y;
+
+        float minz = bbox_min.z;
+        float maxz = bbox_max.z;
+
+        U = (position_model.x - minx)/(maxx - minx);
+        V = (position_model.y - miny)/(maxy - miny);
     }
 
     // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
@@ -148,11 +179,18 @@ void main()
     vec3 Ka; // Refletância ambiente
     float q; // Expoente especular para o modelo de iluminação de Phong
 
-    if (object_id == CUBE)
+    if (object_id == CUBEXZ)
     {
         Kd0 = texture(TextureImage2, vec2(U, V)).rgb;
         Ks = vec3(0.8,0.8,0.8);
         Ka = vec3(0.04,0.2,0.4);
+        q = 32.0;
+    }
+    else if (object_id == CUBEXY)
+    {
+        Kd0 = texture(TextureImage3, vec2(U, V)).rgb;
+        Ks = vec3(0.8,0.8,0.8);
+        Ka = vec3(0.4,0.4,0.4);
         q = 32.0;
     }
     else if (object_id == BUNNY)
@@ -160,7 +198,12 @@ void main()
         Kd0 = texture(TextureImage2, vec2(U, V)).rgb;
         Ks = vec3(0.8,0.8,0.8);
         Ka = vec3(0.04,0.2,0.4);
-        q = 32.0;
+        q = 5.0;
+    }
+    else if (object_id == WALLXY)
+    {
+        Kd0 = texture(TextureImage3, vec2(U, V)).rgb;
+
     }
     else
     {
@@ -183,18 +226,20 @@ void main()
     vec3 Ia = vec3(0.2,0.2,0.2); // PREENCHA AQUI o espectro da luz ambiente
 
     // Termo difuso utilizando a lei dos cossenos de Lambert
-    vec3 lambert_diffuse_term = Kd0*I*max(0.0,dot(n,l))*sombra; // PREENCHA AQUI o termo difuso de Lambert
+    vec3 lambert_diffuse_term = Kd0*I*max(0.0,dot(n,l)); // PREENCHA AQUI o termo difuso de Lambert
 
     // Termo ambiente
     vec3 ambient_term = Ka*Ia; // PREENCHA AQUI o termo ambiente
 
     // Termo especular utilizando o modelo de iluminação de Phong
-    vec3 phong_specular_term  = Ks*I*max(0.0,pow(dot(n,normalize(v+l)) ,q))*sombra;
+    vec3 phong_specular_term  = Ks*I*max(0.0,pow(dot(r,v) ,q));
+
+    vec3 blinn_phong_specular_term  = Ks*I*max(0.0,pow(dot(n,normalize(v+l)) ,q));
 
     color.rgb = Kd0 * (lambert + 0.01);
 
     if (object_id == BUNNY){
-        color.rgb = Kd0*(lambert_diffuse_term + ambient_term + phong_specular_term);
+        color.rgb = Kd0*(lambert_diffuse_term + ambient_term + blinn_phong_specular_term);
     }
     else{
         color.rgb = Kd0 * (lambert + 0.01);

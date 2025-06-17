@@ -224,7 +224,7 @@ GLint g_bbox_max_uniform;
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
 
-bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false;
+bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false, g_QPressed = false;
 
 int main(int argc, char* argv[])
 {
@@ -303,6 +303,7 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/tc-earth_daymap_surface.jpg");      // TextureImage0
     LoadTextureImage("../../data/tc-earth_nightmap_citylights.gif");
     LoadTextureImage("../../data/dourado.jpg");
+    LoadTextureImage("../../data/red_brick_diff_4k.jpg");
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/sphere.obj");
@@ -320,6 +321,10 @@ int main(int argc, char* argv[])
     ObjModel cubemodel("../../data/cube.obj");
     ComputeNormals(&cubemodel);
     BuildTrianglesAndAddToVirtualScene(&cubemodel);
+
+    ObjModel monstermodel("../../data/alien.obj");
+    ComputeNormals(&monstermodel);
+    BuildTrianglesAndAddToVirtualScene(&monstermodel);
 
     if ( argc > 1 )
     {
@@ -339,8 +344,10 @@ int main(int argc, char* argv[])
     glFrontFace(GL_CCW);
 
 
-    glm::vec4 camera_position_act  = glm::vec4(1.0f,2.0f,-2.5f,1.0f);
+    glm::vec4 camera_position_act  = glm::vec4(7.5f,2.0f,1.5f,1.0f);
+    glm::vec4 monster_position_act  = glm::vec4(7.5f,1.0f,10.5f,1.0f);
     float speed = 1.0f;
+    float speed_wall = 0.1f;
 
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
@@ -437,7 +444,10 @@ int main(int argc, char* argv[])
         #define SPHERE 0
         #define BUNNY  1
         #define PLANE  2
-        #define CUBE   3
+        #define CUBEXY 3
+        #define CUBEXZ 4
+        #define WALLXY 5
+
 
        /* // Desenhamos o modelo da esfera
         model = Matrix_Translate(-1.0f,0.0f,0.0f)
@@ -484,8 +494,9 @@ int main(int argc, char* argv[])
         // cubo
         int gridSizeX = 15;
         int gridSizeZ = 250;
-        float spacing = 1.01f;
-        int wallHeight = 3; // distância entre cubos
+        float spacing = 1.0f;
+        int wallHeight = 3;
+
 
         for (int x = 0; x < gridSizeX; ++x) {
             for (int z = 0; z < gridSizeZ; ++z) {
@@ -494,7 +505,7 @@ int main(int argc, char* argv[])
                 model = glm::translate(model, glm::vec3(x * spacing, 0.0f, z * spacing));
 
                 glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-                glUniform1i(g_object_id_uniform, CUBE);
+                glUniform1i(g_object_id_uniform, CUBEXZ);
                 DrawVirtualObject("the_cube");}}
 
         for (int z = 0; z < gridSizeZ; ++z) {
@@ -503,17 +514,41 @@ int main(int argc, char* argv[])
                 glm::mat4 modelLeft = glm::mat4(1.0f);
                 modelLeft = glm::translate(modelLeft, glm::vec3(0 * spacing, y * spacing, z * spacing));
                 glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(modelLeft));
-                glUniform1i(g_object_id_uniform, CUBE);
+                glUniform1i(g_object_id_uniform, CUBEXY);
                 DrawVirtualObject("the_cube");
 
                 // Parede da direita (X = gridSizeX - 1)
                 glm::mat4 modelRight = glm::mat4(1.0f);
                 modelRight = glm::translate(modelRight, glm::vec3((gridSizeX - 1) * spacing, y * spacing, z * spacing));
                 glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(modelRight));
-                glUniform1i(g_object_id_uniform, CUBE);
+                glUniform1i(g_object_id_uniform, CUBEXY);
                 DrawVirtualObject("the_cube");
             }
         }
+
+        for (int k = 0; k < 13; ++k){
+                for(int j = 0; j < 3; ++j){
+                glm::mat4 modelWall = glm::mat4(1.0f);
+                modelWall = glm::translate(modelWall, glm::vec3((1.0f+k* spacing) ,(1.0f+j* spacing) ,(gridSizeZ* spacing)));
+                glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(modelWall));
+                glUniform1i(g_object_id_uniform, WALLXY);
+                DrawVirtualObject("the_cube");
+                }
+        }
+
+        model = Matrix_Translate(5.0f,1.0f,1.0f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, WALLXY);
+        DrawVirtualObject("the_cube");
+
+        model = Matrix_Translate(monster_position_act.x,monster_position_act.y,monster_position_act.z)*Matrix_Scale(0.1f, 0.1f, -0.1f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, BUNNY);
+        DrawVirtualObject("monster");
+
+
+
+
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
         // terceiro cubo.
@@ -681,6 +716,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage0"), 0);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
     glUseProgram(0);
 }
 
@@ -1315,6 +1351,10 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         if (key == GLFW_KEY_A) g_APressed = false;
         if (key == GLFW_KEY_D) g_DPressed = false;
     }
+
+
+
+
 
 
 }
