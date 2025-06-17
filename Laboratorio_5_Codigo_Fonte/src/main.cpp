@@ -228,6 +228,7 @@ bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = fa
 
 int main(int argc, char* argv[])
 {
+    float prev_time = (float)glfwGetTime();
     // Inicializamos a biblioteca GLFW, utilizada para criar uma janela do
     // sistema operacional, onde poderemos renderizar com OpenGL.
     int success = glfwInit();
@@ -345,13 +346,15 @@ int main(int argc, char* argv[])
 
 
     glm::vec4 camera_position_act  = glm::vec4(7.5f,2.0f,1.5f,1.0f);
-    glm::vec4 monster_position_act  = glm::vec4(7.5f,1.0f,10.5f,1.0f);
-    float speed = 1.0f;
-    float speed_wall = 0.1f;
+    float speed = 6.0f;
+    float speed_wall = 3.1f;
 
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
+        float current_time = (float)glfwGetTime();
+        float delta = current_time - prev_time;
+        prev_time = current_time;
         // Aqui executamos as operações de renderização
 
         // Definimos a cor do "fundo" do framebuffer como branco.  Tal cor é
@@ -391,17 +394,17 @@ int main(int argc, char* argv[])
         glm::vec4 u = crossproduct(camera_up_vector, w);
 
         if (g_WPressed)
-            camera_position_act -= w * speed * 0.25f;
+            camera_position_act -= w * speed * delta ;
         if (g_SPressed)
-            camera_position_act += w * speed * 0.25f;
+            camera_position_act += w * speed * delta ;
         if (g_APressed)
-            camera_position_act -=  u * speed * 0.25f;
+            camera_position_act -= u * speed * delta ;
         if (g_DPressed)
-            camera_position_act += u * speed * 0.25f;
+            camera_position_act += u * speed * delta ;
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        camera_position_act.y = 2.0f;
+        camera_position_act.y = 4.0f;
         glm::mat4 view = Matrix_Camera_View(camera_position_act, camera_view_vector, camera_up_vector);
 
         // Agora computamos a matriz de Projeção.
@@ -495,7 +498,7 @@ int main(int argc, char* argv[])
         int gridSizeX = 15;
         int gridSizeZ = 250;
         float spacing = 1.0f;
-        int wallHeight = 3;
+        int wallHeight = 4;
 
 
         for (int x = 0; x < gridSizeX; ++x) {
@@ -541,7 +544,7 @@ int main(int argc, char* argv[])
         glUniform1i(g_object_id_uniform, WALLXY);
         DrawVirtualObject("the_cube");
 
-        model = Matrix_Translate(monster_position_act.x,monster_position_act.y,monster_position_act.z)*Matrix_Scale(0.1f, 0.1f, -0.1f);
+        model = Matrix_Translate(camera_position_act.x,camera_position_act.y-3,camera_position_act.z + 10)*Matrix_Scale(0.1f, 0.1f, 0.1f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("monster");
