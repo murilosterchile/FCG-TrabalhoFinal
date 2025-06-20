@@ -224,7 +224,22 @@ GLint g_bbox_max_uniform;
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
 
-bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false, g_QPressed = false;
+bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false, g_TPressed = false;
+
+glm::vec3 bezier(const std::vector<glm::vec3>& controlPoints, float t) {
+    glm::vec3 p0 = controlPoints[0];
+    glm::vec3 p1 = controlPoints[1];
+    glm::vec3 p2 = controlPoints[2];
+    glm::vec3 p3 = controlPoints[3];
+
+    float u = 1.0f - t;
+    float tt = t * t;
+    float uu = u * u;
+    float uuu = uu * u;
+    float ttt = tt * t;
+
+    glm::vec3 p = uuu * p0 + 3 * uu * t * p1 + 3 * u * tt * p2 + ttt * p3;
+    return p;}
 
 int main(int argc, char* argv[])
 {
@@ -305,6 +320,7 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/tc-earth_nightmap_citylights.gif");
     LoadTextureImage("../../data/dourado.jpg");
     LoadTextureImage("../../data/red_brick_diff_4k.jpg");
+    LoadTextureImage("../../data/sky.jpg");
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/sphere.obj");
@@ -327,6 +343,22 @@ int main(int argc, char* argv[])
     ComputeNormals(&monstermodel);
     BuildTrianglesAndAddToVirtualScene(&monstermodel);
 
+
+
+
+    std::vector<glm::vec3> controlPoints = {
+        glm::vec3(2.0f, 5.0f, 250.0f),    // Início
+        glm::vec3(2.0f, 10.0f, 250.0f),   // P1
+        glm::vec3(13.0f, 10.0f, 250.0f),  // P2
+        glm::vec3(13.0f, 5.0f, 250.0f)    // Fim
+        };
+
+        float bezier_t = 0.0f;
+        float bezier_speed = 0.2f;
+        glm::vec3 bezierPosition = controlPoints[0];
+
+
+
     if ( argc > 1 )
     {
         ObjModel model(argv[1]);
@@ -346,8 +378,11 @@ int main(int argc, char* argv[])
 
 
     glm::vec4 camera_position_act  = glm::vec4(7.5f,2.0f,1.5f,1.0f);
+    glm::vec3 spherePosition = glm::vec3(2.0f, 4.0f, 250.0f);
+    float sphereRadius = 1.75f;
     float speed = 6.0f;
     float speed_wall = 3.1f;
+    float t = 0.0f;
 
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
@@ -355,6 +390,14 @@ int main(int argc, char* argv[])
         float current_time = (float)glfwGetTime();
         float delta = current_time - prev_time;
         prev_time = current_time;
+
+
+        bezier_t += delta * bezier_speed*0.5f;
+        if (bezier_t > 1.0f)
+            bezier_t = 0.0f;
+
+        bezierPosition = bezier(controlPoints, bezier_t);
+
         // Aqui executamos as operações de renderização
 
         // Definimos a cor do "fundo" do framebuffer como branco.  Tal cor é
@@ -401,11 +444,14 @@ int main(int argc, char* argv[])
             camera_position_act -= u * speed * delta ;
         if (g_DPressed)
             camera_position_act += u * speed * delta ;
+        if (g_TPressed)
+            t +=  speed * delta ;
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
         camera_position_act.y = 4.0f;
         glm::mat4 view = Matrix_Camera_View(camera_position_act, camera_view_vector, camera_up_vector);
+
 
         // Agora computamos a matriz de Projeção.
         glm::mat4 projection;
@@ -450,6 +496,7 @@ int main(int argc, char* argv[])
         #define CUBEXY 3
         #define CUBEXZ 4
         #define WALLXY 5
+        #define SKY    6
 
 
        /* // Desenhamos o modelo da esfera
@@ -474,27 +521,38 @@ int main(int argc, char* argv[])
         glUniform1i(g_object_id_uniform, PLANE);
         DrawVirtualObject("the_plane");*/
 
-        model = Matrix_Translate(5.0f,2.0f,5.0f);
+        model = Matrix_Translate(6.0f,2.0f+t,100.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("the_bunny");
 
-        model = Matrix_Translate(2.0f,2.0f,5.0f);
+        model = Matrix_Translate(3.0f,2.0f+t,100.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("the_bunny");
 
-        model = Matrix_Translate(8.0f,2.0f,5.0f);
+        model = Matrix_Translate(9.0f,2.0f+t,100.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("the_bunny");
 
-        model = Matrix_Translate(11.0f,2.0f,5.0f);
+        model = Matrix_Translate(12.0f,2.0f+t,100.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("the_bunny");
 
-        // cubo
+        // FONTE - retirado do Murilo Sterchile do semestre passado
+        glCullFace(GL_FRONT);
+        model = Matrix_Translate(camera_position_act.x, camera_position_act.y, camera_position_act.z);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, SKY);
+        glDisable(GL_DEPTH_TEST);
+        DrawVirtualObject("the_sphere");
+        glEnable(GL_DEPTH_TEST);
+        glCullFace(GL_BACK);
+        // Fim FONTE
+
+        // mapa
         int gridSizeX = 15;
         int gridSizeZ = 250;
         float spacing = 1.0f;
@@ -503,7 +561,7 @@ int main(int argc, char* argv[])
 
         for (int x = 0; x < gridSizeX; ++x) {
             for (int z = 0; z < gridSizeZ; ++z) {
-                glm::mat4 model = glm::mat4(1.0f); // <- reinicializa para identidade
+                glm::mat4 model = glm::mat4(1.0f);
 
                 model = glm::translate(model, glm::vec3(x * spacing, 0.0f, z * spacing));
 
@@ -539,6 +597,15 @@ int main(int argc, char* argv[])
                 }
         }
 
+        for (int k = 2; k < 11; ++k){
+            glm::mat4 modelWall = glm::mat4(1.0f);
+            modelWall = glm::translate(modelWall, glm::vec3((1.0f+k* spacing) ,(4.0f* spacing) ,(gridSizeZ* spacing)));
+            glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(modelWall));
+            glUniform1i(g_object_id_uniform, WALLXY);
+            DrawVirtualObject("the_cube");
+
+        }
+
         model = Matrix_Translate(5.0f,1.0f,1.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, WALLXY);
@@ -548,6 +615,13 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("monster");
+
+
+        //planeta
+        model = Matrix_Translate(bezierPosition.x, bezierPosition.y, bezierPosition.z);
+        glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, SPHERE);
+        DrawVirtualObject("the_sphere");
 
 
 
@@ -720,6 +794,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
     glUseProgram(0);
 }
 
@@ -1355,10 +1430,13 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         if (key == GLFW_KEY_D) g_DPressed = false;
     }
 
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_T) g_TPressed = true;
+    }
 
-
-
-
+    if (action == GLFW_RELEASE) {
+        if (key == GLFW_KEY_T) g_TPressed = false;
+    }
 
 }
 
