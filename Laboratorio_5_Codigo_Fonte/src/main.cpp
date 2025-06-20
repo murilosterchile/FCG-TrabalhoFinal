@@ -224,7 +224,7 @@ GLint g_bbox_max_uniform;
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
 
-bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false, g_TPressed = false;
+bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false, g_TPressed = false, g_FPressed = false, g_LPressed = true;
 
 glm::vec3 bezier(const std::vector<glm::vec3>& controlPoints, float t) {
     glm::vec3 p0 = controlPoints[0];
@@ -240,6 +240,10 @@ glm::vec3 bezier(const std::vector<glm::vec3>& controlPoints, float t) {
 
     glm::vec3 p = uuu * p0 + 3 * uu * t * p1 + 3 * u * tt * p2 + ttt * p3;
     return p;}
+
+glm::vec3 g_CameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
+float g_Yaw   = 0.0f;   // Ângulo horizontal (em rad)
+float g_Pitch = 0.0f;   // Ângulo vertical (em rad)
 
 int main(int argc, char* argv[])
 {
@@ -347,10 +351,10 @@ int main(int argc, char* argv[])
 
 
     std::vector<glm::vec3> controlPoints = {
-        glm::vec3(2.0f, 5.0f, 250.0f),    // Início
-        glm::vec3(2.0f, 10.0f, 250.0f),   // P1
-        glm::vec3(13.0f, 10.0f, 250.0f),  // P2
-        glm::vec3(13.0f, 5.0f, 250.0f)    // Fim
+        glm::vec3(2.0f, 3.0f, 270.0f),    // Início
+        glm::vec3(2.0f, 12.0f, 250.0f),   // P1
+        glm::vec3(14.0f, 12.0f, 250.0f),  // P2
+        glm::vec3(14.0f, 3.0f, 270.0f)    // Fim
         };
 
         float bezier_t = 0.0f;
@@ -383,6 +387,9 @@ int main(int argc, char* argv[])
     float speed = 6.0f;
     float speed_wall = 3.1f;
     float t = 0.0f;
+    float me = 0.0f;
+    float md = 0.0f;
+
 
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
@@ -427,23 +434,57 @@ int main(int argc, char* argv[])
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        glm::vec4 camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
-        glm::vec4 camera_lookat_l    = glm::vec4(0.0f,1.0f,1.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+
+        glm::vec4 camera_position_c;
+        glm::vec4 camera_lookat_l;
+
+        if (g_FPressed)
+        {
+            camera_position_c = glm::vec4(x, y, -z, 1.0f);
+            camera_lookat_l   = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+
+        }
+        else
+        {
+            camera_position_c = glm::vec4(camera_position_act);
+            camera_lookat_l   = glm::vec4(camera_position_act.x + g_CameraFront.x, camera_position_act.y + g_CameraFront.y, camera_position_act.z + g_CameraFront.z, 1.0f );
+        }
+
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
         glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f);
+
 
 
         glm::vec4 w = -camera_view_vector / norm(camera_view_vector);
         glm::vec4 u = crossproduct(camera_up_vector, w);
 
-        if (g_WPressed)
+        if (g_FPressed)
+        {
+            if (g_WPressed)
             camera_position_act -= w * speed * delta ;
-        if (g_SPressed)
-            camera_position_act += w * speed * delta ;
-        if (g_APressed)
-            camera_position_act -= u * speed * delta ;
-        if (g_DPressed)
-            camera_position_act += u * speed * delta ;
+            if (g_SPressed)
+                camera_position_act += w * speed * delta ;
+            if (g_APressed)
+                me -=  speed * delta ;
+            if (g_DPressed)
+                md +=  speed * delta ;
+
+        }
+        else
+        {
+            if (g_WPressed)
+            camera_position_act -= w * speed * delta ;
+            if (g_SPressed)
+                camera_position_act += w * speed * delta ;
+            if (g_APressed)
+                camera_position_act -= u * speed * delta ;
+            if (g_DPressed)
+                camera_position_act += u * speed * delta ;
+
+        }
+
+        // transformações goemétricas controlados pelo usuário/ baseadas no tempo
+
         if (g_TPressed)
             t +=  speed * delta ;
 
@@ -499,27 +540,6 @@ int main(int argc, char* argv[])
         #define SKY    6
 
 
-       /* // Desenhamos o modelo da esfera
-        model = Matrix_Translate(-1.0f,0.0f,0.0f)
-              * Matrix_Rotate_Z(0.6f)
-              * Matrix_Rotate_X(0.2f)
-              * Matrix_Rotate_Y(g_AngleY + (float)glfwGetTime() * 0.1f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, SPHERE);
-        DrawVirtualObject("the_sphere");
-
-        // Desenhamos o modelo do coelho
-        model = Matrix_Translate(1.0f,0.0f,0.0f)
-              * Matrix_Rotate_X(g_AngleX + (float)glfwGetTime() * 0.1f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BUNNY);
-        DrawVirtualObject("the_bunny");
-
-        // Desenhamos o plano do chão
-        model = Matrix_Translate(0.0f,-1.1f,0.0f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, PLANE);
-        DrawVirtualObject("the_plane");*/
 
         model = Matrix_Translate(6.0f,2.0f+t,100.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -559,6 +579,7 @@ int main(int argc, char* argv[])
         int wallHeight = 4;
 
 
+        //chao XZ
         for (int x = 0; x < gridSizeX; ++x) {
             for (int z = 0; z < gridSizeZ; ++z) {
                 glm::mat4 model = glm::mat4(1.0f);
@@ -569,6 +590,7 @@ int main(int argc, char* argv[])
                 glUniform1i(g_object_id_uniform, CUBEXZ);
                 DrawVirtualObject("the_cube");}}
 
+        // parede XZ
         for (int z = 0; z < gridSizeZ; ++z) {
             for (int y = 1; y <= wallHeight; ++y) {
                 // Parede da esquerda (X = 0)
@@ -587,6 +609,7 @@ int main(int argc, char* argv[])
             }
         }
 
+        //parede XY
         for (int k = 0; k < 13; ++k){
                 for(int j = 0; j < 3; ++j){
                 glm::mat4 modelWall = glm::mat4(1.0f);
@@ -606,12 +629,14 @@ int main(int argc, char* argv[])
 
         }
 
+        // cubo teste
         model = Matrix_Translate(5.0f,1.0f,1.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, WALLXY);
         DrawVirtualObject("the_cube");
 
-        model = Matrix_Translate(camera_position_act.x,camera_position_act.y-3,camera_position_act.z + 10)*Matrix_Scale(0.1f, 0.1f, 0.1f);
+        // monstro
+        model = Matrix_Translate(camera_position_act.x+me+md,camera_position_act.y-3,camera_position_act.z + 10)*Matrix_Scale(0.1f, 0.1f, 0.1f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("monster");
@@ -622,7 +647,6 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, SPHERE);
         DrawVirtualObject("the_sphere");
-
 
 
 
@@ -1264,30 +1288,33 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
     // Assim, temos que o usuário consegue controlar a câmera.
 
     if (g_LeftMouseButtonPressed)
+{
+    float dx = xpos - g_LastCursorPosX;
+    float dy = ypos - g_LastCursorPosY;
+
+    g_LastCursorPosX = xpos;
+    g_LastCursorPosY = ypos;
+
+    if (!g_FPressed)
     {
-        // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
-        float dx = xpos - g_LastCursorPosX;
-        float dy = ypos - g_LastCursorPosY;
+        // Modo câmera livre (FPS-style)
+        float sensitivity = 0.002f; // quanto mais alto, mais sensível
+        g_Yaw   += dx * sensitivity;
+        g_Pitch -= dy * sensitivity;
 
-        // Atualizamos parâmetros da câmera com os deslocamentos
-        g_CameraTheta -= 0.01f*dx;
-        g_CameraPhi   += 0.01f*dy;
+        // Limita pitch para evitar "flip"
+        float pitch_limit = glm::radians(89.0f);
+        if (g_Pitch > pitch_limit)  g_Pitch = pitch_limit;
+        if (g_Pitch < -pitch_limit) g_Pitch = -pitch_limit;
 
-        // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
-        float phimax = 3.141592f/2;
-        float phimin = -phimax;
-
-        if (g_CameraPhi > phimax)
-            g_CameraPhi = phimax;
-
-        if (g_CameraPhi < phimin)
-            g_CameraPhi = phimin;
-
-        // Atualizamos as variáveis globais para armazenar a posição atual do
-        // cursor como sendo a última posição conhecida do cursor.
-        g_LastCursorPosX = xpos;
-        g_LastCursorPosY = ypos;
+        glm::vec3 front;
+        front.x = cos(g_Pitch) * sin(g_Yaw);
+        front.y = sin(g_Pitch);
+        front.z = cos(g_Pitch) * cos(g_Yaw);
+        g_CameraFront = glm::normalize(front);
     }
+
+}
 
     if (g_RightMouseButtonPressed)
     {
@@ -1436,6 +1463,18 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 
     if (action == GLFW_RELEASE) {
         if (key == GLFW_KEY_T) g_TPressed = false;
+    }
+
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_L){
+            g_LPressed = true;
+            g_FPressed = false;
+        }
+
+        if (key == GLFW_KEY_F){
+            g_LPressed = false;
+            g_FPressed = true;
+        }
     }
 
 }
