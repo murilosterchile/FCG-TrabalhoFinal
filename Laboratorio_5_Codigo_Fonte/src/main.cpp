@@ -383,7 +383,7 @@ int main(int argc, char* argv[])
     glFrontFace(GL_CCW);
 
 
-    glm::vec4 camera_position_act  = glm::vec4(7.5f,1.5f,1.5f,1.0f);
+    glm::vec4 camera_position_act  = glm::vec4(7.5f, 3.5f,1.5f,1.0f);
     glm::vec4 camera_position_eye = camera_position_act + glm::vec4(0.0f, 0.5f, 1.0f, 0.0f);
     glm::vec3 spherePosition = glm::vec3(2.0f, 4.0f, 250.0f);
     float sphereRadius = 1.75f;
@@ -456,8 +456,6 @@ int main(int argc, char* argv[])
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
         glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f);
 
-
-
         glm::vec4 w = -camera_view_vector / norm(camera_view_vector);
         glm::vec4 u = crossproduct(camera_up_vector, w);
 
@@ -493,7 +491,7 @@ int main(int argc, char* argv[])
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        camera_position_act.y = 0.5f;
+        //camera_position_act.y = 4.0f;
         glm::mat4 view = Matrix_Camera_View(camera_position_act, camera_view_vector, camera_up_vector);
 
 
@@ -528,13 +526,13 @@ int main(int argc, char* argv[])
             }
         }
 
-        float alturaChao = 0.0f;
+        float alturaChao = 3.0f;
         float alturaBoneco = 1.0f;
         float gravidade = 25.0f;
         float forcaPulo = 9.0f;
 
         float centroY = camera_position_act.y;
-        bool noChao = std::abs(centroY - (alturaChao + alturaBoneco / 2.0f)) < 0.01f;
+        bool noChao = AABBvsPlane(bonecoMin, bonecoMax, alturaChao);
 
         if (g_SpacePressed && noChao && !g_IsJumping)
         {
