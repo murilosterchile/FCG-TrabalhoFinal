@@ -29,6 +29,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <algorithm>
+#include <iostream>
+
 
 // Headers das bibliotecas OpenGL
 #include <glad/glad.h>   // Criação de contexto OpenGL 3.3
@@ -47,6 +49,7 @@
 // Headers locais, definidos na pasta "include/"
 #include "utils.h"
 #include "matrices.h"
+#include "collisions.h"
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -225,6 +228,10 @@ GLint g_bbox_max_uniform;
 GLuint g_NumLoadedTextures = 0;
 
 bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false, g_TPressed = false, g_FPressed = false, g_LPressed = true;
+bool g_SpacePressed = false;
+bool g_IsJumping = false;
+float g_VelocidadeVertical = 0.0f;
+
 
 glm::vec3 bezier(const std::vector<glm::vec3>& controlPoints, float t) {
     glm::vec3 p0 = controlPoints[0];
@@ -347,9 +354,6 @@ int main(int argc, char* argv[])
     ComputeNormals(&monstermodel);
     BuildTrianglesAndAddToVirtualScene(&monstermodel);
 
-
-
-
     std::vector<glm::vec3> controlPoints = {
         glm::vec3(2.0f, 3.0f, 270.0f),    // Início
         glm::vec3(2.0f, 12.0f, 250.0f),   // P1
@@ -360,8 +364,6 @@ int main(int argc, char* argv[])
         float bezier_t = 0.0f;
         float bezier_speed = 0.2f;
         glm::vec3 bezierPosition = controlPoints[0];
-
-
 
     if ( argc > 1 )
     {
@@ -381,7 +383,8 @@ int main(int argc, char* argv[])
     glFrontFace(GL_CCW);
 
 
-    glm::vec4 camera_position_act  = glm::vec4(7.5f,2.0f,1.5f,1.0f);
+    glm::vec4 camera_position_act  = glm::vec4(7.5f,1.5f,1.5f,1.0f);
+    glm::vec4 camera_position_eye = camera_position_act + glm::vec4(0.0f, 0.5f, 1.0f, 0.0f);
     glm::vec3 spherePosition = glm::vec3(2.0f, 4.0f, 250.0f);
     float sphereRadius = 1.75f;
     float speed = 6.0f;
@@ -490,8 +493,71 @@ int main(int argc, char* argv[])
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        camera_position_act.y = 4.0f;
+        camera_position_act.y = 0.5f;
         glm::mat4 view = Matrix_Camera_View(camera_position_act, camera_view_vector, camera_up_vector);
+
+
+        // Define AABB do boneco
+        glm::vec3 bonecoPos = glm::vec3(camera_position_act);
+        glm::vec3 bonecoMin = bonecoPos - glm::vec3(0.5f);
+        glm::vec3 bonecoMax = bonecoPos + glm::vec3(0.5f);
+
+        // Define AABB de uma parede
+        glm::vec3 paredeMin = glm::vec3(14.0f, 0.0f, 0.0f);
+        glm::vec3 paredeMax = glm::vec3(15.0f, 4.0f, 250.0f);
+
+        {
+            glm::vec3 paredeMin = glm::vec3(0.0f, 0.0f, 0.0f);
+            glm::vec3 paredeMax = glm::vec3(1.0f, 4.0f, 250.0f);
+
+            if (AABBvsAABB(bonecoMin, bonecoMax, paredeMin, paredeMax))
+            {
+                // Empurra para a direita da parede
+                camera_position_act.x = paredeMax.x + 0.5f;
+            }
+        }
+
+        {
+            glm::vec3 paredeMin = glm::vec3(14.0f, 0.0f, 0.0f);
+            glm::vec3 paredeMax = glm::vec3(15.0f, 4.0f, 250.0f);
+
+            if (AABBvsAABB(bonecoMin, bonecoMax, paredeMin, paredeMax))
+            {
+                // Empurra para a esquerda da parede
+                camera_position_act.x = paredeMin.x - 0.5f;
+            }
+        }
+
+        float alturaChao = 0.0f;
+        float alturaBoneco = 1.0f;
+        float gravidade = 25.0f;
+        float forcaPulo = 9.0f;
+
+        float centroY = camera_position_act.y;
+        bool noChao = std::abs(centroY - (alturaChao + alturaBoneco / 2.0f)) < 0.01f;
+
+        if (g_SpacePressed && noChao && !g_IsJumping)
+        {
+            g_VelocidadeVertical = forcaPulo;
+            g_IsJumping = true;
+        }
+        g_SpacePressed = false;
+
+        if (g_IsJumping)
+        {
+            g_VelocidadeVertical -= gravidade * delta;
+            camera_position_act.y += g_VelocidadeVertical * delta;
+
+            if (camera_position_act.y < alturaChao + alturaBoneco / 2.0f)
+            {
+                camera_position_act.y = alturaChao + alturaBoneco / 2.0f;
+                g_VelocidadeVertical = 0.0f;
+                g_IsJumping = false;
+            }
+        }
+
+
+
 
 
         // Agora computamos a matriz de Projeção.
@@ -636,7 +702,11 @@ int main(int argc, char* argv[])
         DrawVirtualObject("the_cube");
 
         // monstro
-        model = Matrix_Translate(camera_position_act.x+me+md,camera_position_act.y-3,camera_position_act.z + 10)*Matrix_Scale(0.1f, 0.1f, 0.1f);
+       model = Matrix_Translate(camera_position_act.x + me + md,
+                         camera_position_act.y,
+                         camera_position_act.z + 10)
+       * Matrix_Translate(0.0f, -2.5f, 0.0f)  // <- sobe o modelo sem afetar a lógica
+       * Matrix_Scale(0.1f, 0.1f, 0.1f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("monster");
@@ -1475,6 +1545,11 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
             g_LPressed = false;
             g_FPressed = true;
         }
+    }
+
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS){
+        g_SpacePressed = true;
+        std::cout << "Tecla ESPAÇO pressionada\n";
     }
 
 }
