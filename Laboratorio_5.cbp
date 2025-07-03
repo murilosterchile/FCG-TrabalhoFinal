@@ -21,6 +21,7 @@
 					<Add option="-static-libstdc++" />
 					<Add option="-static-libgcc" />
 					<Add option="-static" />
+					<Add option="lib-mingw-64\libglfw3.a -lgdi32 -lopengl32" />
 				</Linker>
 			</Target>
 			<Target title="Release">
@@ -39,6 +40,7 @@
 					<Add option="-static-libstdc++" />
 					<Add option="-static-libgcc" />
 					<Add option="-static" />
+					<Add option="lib-mingw-64\libglfw3.a -lgdi32 -lopengl32" />
 				</Linker>
 			</Target>
 			<Target title="Linux">
@@ -95,7 +97,6 @@
 			<Add directory="include" />
 		</Compiler>
 		<Linker>
-			<Add option="lib\libglfw3.a -lgdi32 -lopengl32" />
 			<Add directory="lib" />
 		</Linker>
 		<Unit filename="include/GLFW/glfw3.h" />

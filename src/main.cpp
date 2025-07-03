@@ -5,8 +5,8 @@
 //    INF01047 Fundamentos de Computação Gráfica
 //               Prof. Eduardo Gastal
 //
-//                   LABORATÓRIO 5
-//
+//                   Trabalho Final
+//             Arthur Sauer e Murilo
 
 // Arquivos "headers" padrões de C podem ser incluídos em um
 // programa C++, sendo necessário somente adicionar o caractere
@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 
 // Headers abaixo são específicos de C++
 #include <map>
@@ -29,10 +30,14 @@
 #include <sstream>
 #include <stdexcept>
 #include <algorithm>
+#include <iostream>
+#include <chrono>
 
 // Headers das bibliotecas OpenGL
 #include <glad/glad.h>   // Criação de contexto OpenGL 3.3
 #include <GLFW/glfw3.h>  // Criação de janelas do sistema operacional
+
+
 
 // Headers da biblioteca GLM: criação de matrizes e vetores.
 #include <glm/mat4x4.hpp>
@@ -47,6 +52,8 @@
 // Headers locais, definidos na pasta "include/"
 #include "utils.h"
 #include "matrices.h"
+#include "collisions.h"
+
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -142,6 +149,7 @@ void TextRendering_ShowModelViewProjection(GLFWwindow* window, glm::mat4 project
 void TextRendering_ShowEulerAngles(GLFWwindow* window);
 void TextRendering_ShowProjection(GLFWwindow* window);
 void TextRendering_ShowFramesPerSecond(GLFWwindow* window);
+void TextRendering_ShowTempo(GLFWwindow* window);
 
 // Funções callback para comunicação com o sistema operacional e interação do
 // usuário. Veja mais comentários nas definições das mesmas, abaixo.
@@ -224,10 +232,42 @@ GLint g_bbox_max_uniform;
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
 
-bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false, g_QPressed = false;
+bool g_WPressed = false, g_SPressed = false, g_APressed = false, g_DPressed = false, g_TPressed = false, g_FPressed = false, g_LPressed = true;
+bool g_ShiftPressed = false;
+bool g_SpacePressed = false;
+bool g_IsJumping = false;
+float g_VelocidadeVertical = 0.0f;
+bool g_timerStarted = false;
+float g_tempoDecorrido = 0.0f;
+std::chrono::steady_clock::time_point g_startTime;
+
+
+
+
+glm::vec3 bezier(const std::vector<glm::vec3>& controlPoints, float t) {
+    glm::vec3 p0 = controlPoints[0];
+    glm::vec3 p1 = controlPoints[1];
+    glm::vec3 p2 = controlPoints[2];
+    glm::vec3 p3 = controlPoints[3];
+
+    float u = 1.0f - t;
+    float tt = t * t;
+    float uu = u * u;
+    float uuu = uu * u;
+    float ttt = tt * t;
+
+    glm::vec3 p = uuu * p0 + 3 * uu * t * p1 + 3 * u * tt * p2 + ttt * p3;
+    return p;}
+
+glm::vec3 g_CameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
+float g_Yaw   = 0.0f;   // Ângulo horizontal (em rad)
+float g_Pitch = 0.0f;   // Ângulo vertical (em rad)
+
+std::vector<glm::vec3> bunnyRandomPositions;
 
 int main(int argc, char* argv[])
 {
+    float prev_time = (float)glfwGetTime();
     // Inicializamos a biblioteca GLFW, utilizada para criar uma janela do
     // sistema operacional, onde poderemos renderizar com OpenGL.
     int success = glfwInit();
@@ -255,7 +295,7 @@ int main(int argc, char* argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047 ...".
     GLFWwindow* window;
-    window = glfwCreateWindow(800, 600, "INF01047 - Seu Cartao - Seu Nome", NULL, NULL);
+    window = glfwCreateWindow(800, 600, "INF01047 - TF - Arthur Sauer e Murilo", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -304,6 +344,7 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/tc-earth_nightmap_citylights.gif");
     LoadTextureImage("../../data/dourado.jpg");
     LoadTextureImage("../../data/red_brick_diff_4k.jpg");
+    LoadTextureImage("../../data/sky.jpg");
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/sphere.obj");
@@ -326,6 +367,17 @@ int main(int argc, char* argv[])
     ComputeNormals(&monstermodel);
     BuildTrianglesAndAddToVirtualScene(&monstermodel);
 
+    std::vector<glm::vec3> controlPoints = {
+        glm::vec3(2.0f, 3.0f, 270.0f),    // Início
+        glm::vec3(2.0f, 12.0f, 250.0f),   // P1
+        glm::vec3(14.0f, 12.0f, 250.0f),  // P2
+        glm::vec3(14.0f, 3.0f, 270.0f)    // Fim
+        };
+
+        float bezier_t = 0.0f;
+        float bezier_speed = 0.2f;
+        glm::vec3 bezierPosition = controlPoints[0];
+
     if ( argc > 1 )
     {
         ObjModel model(argv[1]);
@@ -344,14 +396,32 @@ int main(int argc, char* argv[])
     glFrontFace(GL_CCW);
 
 
-    glm::vec4 camera_position_act  = glm::vec4(7.5f,2.0f,1.5f,1.0f);
-    glm::vec4 monster_position_act  = glm::vec4(7.5f,1.0f,10.5f,1.0f);
-    float speed = 1.0f;
-    float speed_wall = 0.1f;
+    glm::vec4 camera_position_act  = glm::vec4(7.5f, 3.5f,1.5f,1.0f);
+    glm::vec4 camera_position_eye = camera_position_act + glm::vec4(0.0f, 0.5f, 1.0f, 0.0f);
+    glm::vec3 spherePosition = glm::vec3(2.0f, 4.0f, 250.0f);
+    float sphereRadius = 1.75f;
+    float speed_wall = 3.1f;
+    float t = 0.0f;
+    float me = 0.0f;
+    float md = 0.0f;
+
 
     // Ficamos em um loop infinito, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
+        float current_time = (float)glfwGetTime();
+        float delta = current_time - prev_time;
+        prev_time = current_time;
+
+        float baseSpeed = 6.0f;
+        float speed = g_ShiftPressed ? baseSpeed * 2.0f : baseSpeed;
+
+        bezier_t += delta * bezier_speed*0.5f;
+        if (bezier_t > 1.0f)
+            bezier_t = 0.0f;
+
+        bezierPosition = bezier(controlPoints, bezier_t);
+
         // Aqui executamos as operações de renderização
 
         // Definimos a cor do "fundo" do framebuffer como branco.  Tal cor é
@@ -381,28 +451,204 @@ int main(int argc, char* argv[])
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        glm::vec4 camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
-        glm::vec4 camera_lookat_l    = glm::vec4(0.0f,1.0f,1.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+
+        glm::vec4 camera_position_c;
+        glm::vec4 camera_lookat_l;
+
+        if (g_FPressed)
+        {
+            camera_position_c = glm::vec4(x, y, -z, 1.0f);
+            camera_lookat_l   = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+
+        }
+        else
+        {
+            camera_position_c = glm::vec4(camera_position_act);
+            camera_lookat_l   = glm::vec4(camera_position_act.x + g_CameraFront.x, camera_position_act.y + g_CameraFront.y, camera_position_act.z + g_CameraFront.z, 1.0f );
+        }
+
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
         glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f);
-
 
         glm::vec4 w = -camera_view_vector / norm(camera_view_vector);
         glm::vec4 u = crossproduct(camera_up_vector, w);
 
-        if (g_WPressed)
-            camera_position_act -= w * speed * 0.25f;
-        if (g_SPressed)
-            camera_position_act += w * speed * 0.25f;
-        if (g_APressed)
-            camera_position_act -=  u * speed * 0.25f;
-        if (g_DPressed)
-            camera_position_act += u * speed * 0.25f;
+        if (g_FPressed)
+        {
+            if (g_WPressed)
+            camera_position_act -= w * speed * delta ;
+            if (g_SPressed)
+                camera_position_act += w * speed * delta ;
+            if (g_APressed)
+                me -=  speed * delta ;
+            if (g_DPressed)
+                md +=  speed * delta ;
+
+        }
+        else
+        {
+            if (g_WPressed)
+            camera_position_act -= w * speed * delta ;
+            if (g_SPressed)
+                camera_position_act += w * speed * delta ;
+            if (g_APressed)
+                camera_position_act -= u * speed * delta ;
+            if (g_DPressed)
+                camera_position_act += u * speed * delta ;
+
+        }
+
+        // transformações goemétricas controlados pelo usuário/ baseadas no tempo
+
+        if (g_TPressed)
+            t +=  speed * delta ;
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        camera_position_act.y = 2.0f;
+        camera_position_act.y = 4.0f;
         glm::mat4 view = Matrix_Camera_View(camera_position_act, camera_view_vector, camera_up_vector);
+
+
+        // COMEÇO COLISOES
+
+        // Colisão paredes cubo-cubo
+        glm::vec3 bonecoPos = glm::vec3(camera_position_act);
+        glm::vec3 bonecoMin = bonecoPos - glm::vec3(0.5f);
+        glm::vec3 bonecoMax = bonecoPos + glm::vec3(0.5f);
+
+
+        glm::vec3 paredeMin = glm::vec3(13.0f, 0.0f, 0.0f);
+        glm::vec3 paredeMax = glm::vec3(15.0f, 4.0f, 250.0f);
+
+        {
+            glm::vec3 paredeMin = glm::vec3(0.0f, 0.0f, 0.0f);
+            glm::vec3 paredeMax = glm::vec3(1.5f, 4.0f, 250.0f);
+
+            if (AABBvsAABB(bonecoMin, bonecoMax, paredeMin, paredeMax))
+            {
+
+                camera_position_act.x = paredeMax.x + 0.5f;
+            }
+        }
+
+        {
+            glm::vec3 paredeMin = glm::vec3(13.5f, 0.0f, 0.0f);
+            glm::vec3 paredeMax = glm::vec3(15.0f, 4.0f, 250.0f);
+
+            if (AABBvsAABB(bonecoMin, bonecoMax, paredeMin, paredeMax))
+            {
+
+                camera_position_act.x = paredeMin.x - 0.5f;
+            }
+        }
+
+
+        // Colisão chão cubo-plano
+        float alturaChao = 3.0f;
+        float alturaBoneco = 1.0f;
+        float gravidade = 25.0f;
+        float forcaPulo = 9.0f;
+
+        float centroY = camera_position_act.y;
+        bool noChao = AABBvsPlane(bonecoMin, bonecoMax, alturaChao);
+
+        if (g_SpacePressed && noChao && !g_IsJumping)
+        {
+            g_VelocidadeVertical = forcaPulo;
+            g_IsJumping = true;
+        }
+        g_SpacePressed = false;
+
+        if (g_IsJumping)
+        {
+            g_VelocidadeVertical -= gravidade * delta;
+            camera_position_act.y += g_VelocidadeVertical * delta;
+
+            if (camera_position_act.y < alturaChao + alturaBoneco / 2.0f)
+            {
+                camera_position_act.y = alturaChao + alturaBoneco / 2.0f;
+                g_VelocidadeVertical = 0.0f;
+                g_IsJumping = false;
+            }
+        }
+
+        //colisao caixas iniciais
+        float boxSizeX = 1.0f;
+        float boxSizeY = 2.0f;
+        float boxSizeZ = 1.0f;
+
+        glm::vec3 monsterPos = glm::vec3(camera_position_act.x + me + md,
+                                         camera_position_act.y - 2.5f,
+                                         camera_position_act.z + 10);
+
+        glm::vec3 monsterMin = monsterPos - glm::vec3(boxSizeX/2.0f, 0.0f, boxSizeZ/2.0f);
+        glm::vec3 monsterMax = monsterPos + glm::vec3(boxSizeX/2.0f, boxSizeY, boxSizeZ/2.0f);
+
+        // posições das 8 caixas iniciais
+        std::vector<glm::vec3> boxPositions;
+        for (int i = 0; i < 8; ++i)
+        {
+            float x = 2.0f + i * 1.5f;
+            float y = 2.0f + t;
+            float z = 100.0f;
+            boxPositions.push_back(glm::vec3(x, y, z));
+        }
+
+        for (const auto& pos : boxPositions)
+        {
+            glm::vec3 boxMin = pos - glm::vec3(boxSizeX/2.0f, 0.0f, boxSizeZ/2.0f);
+            glm::vec3 boxMax = pos + glm::vec3(boxSizeX/2.0f, boxSizeY, boxSizeZ/2.0f);
+
+            if (AABBvsAABB(monsterMin, monsterMax, boxMin, boxMax))
+            {
+                std::cout << "MONSTRO colidiu com CAIXA fixa em: " << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
+                me = 0.0f;
+                md = 0.0f;
+                camera_position_act.z -= 1.0f;
+            }
+        }
+
+        //Colisão coelhos
+        float bunnySizeX = 1.0f;
+        float bunnySizeY = 2.0f;
+        float bunnySizeZ = 1.0f;
+
+        // Coelhos aleatórios
+        for (const auto& pos : bunnyRandomPositions)
+        {
+            glm::vec3 bunnyMin = pos - glm::vec3(bunnySizeX/2.0f, 0.0f, bunnySizeZ/2.0f);
+            glm::vec3 bunnyMax = pos + glm::vec3(bunnySizeX/2.0f, bunnySizeY, bunnySizeZ/2.0f);
+
+            if (AABBvsAABB(monsterMin, monsterMax, bunnyMin, bunnyMax))
+            {
+                std::cout << "MONSTRO colidiu com coelho aleatório em: " << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
+                me = 0.0f;
+                md = 0.0f;
+                camera_position_act.z -= 1.0f;
+            }
+        }
+
+        std::cout << "Z do monstro: " << monsterPos.z << std::endl;
+
+
+        float triggerPlaneY = 2.0f; // mesma altura Y das caixas e do monstro
+        float triggerPlaneZ = 101.0f; // levemente atrás das caixas
+        float triggerPlaneXMin = 1.5f;
+        float triggerPlaneXMax = 14.5f;
+
+        if (!g_timerStarted &&
+            AABBvsPlane(monsterMin, monsterMax, triggerPlaneY) && // colisão no eixo Y
+            monsterMin.z >= triggerPlaneZ) // passou do plano invisível (no eixo Z)
+        {
+            g_timerStarted = true;
+            g_startTime = std::chrono::steady_clock::now();
+            std::cout << "Cronômetro iniciado!\n";
+        }
+
+
+
+
+
 
         // Agora computamos a matriz de Projeção.
         glm::mat4 projection;
@@ -447,60 +693,67 @@ int main(int argc, char* argv[])
         #define CUBEXY 3
         #define CUBEXZ 4
         #define WALLXY 5
+        #define SKY    6
 
 
-       /* // Desenhamos o modelo da esfera
-        model = Matrix_Translate(-1.0f,0.0f,0.0f)
-              * Matrix_Rotate_Z(0.6f)
-              * Matrix_Rotate_X(0.2f)
-              * Matrix_Rotate_Y(g_AngleY + (float)glfwGetTime() * 0.1f);
+        // caixas iniciais
+        for (int i = 0; i < 8; ++i)
+        {
+            float x = 2.0f + i * 1.5f; // Espaçamento entre caixas
+            float y = 2.0f + t;        // Altura base (fixa)
+            float z = 100.0f;
+
+            model = Matrix_Translate(x, y, z);
+            glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+            glUniform1i(g_object_id_uniform, WALLXY);
+            DrawVirtualObject("the_cube");
+        }
+
+
+        if (bunnyRandomPositions.empty()) {
+            std::srand(static_cast<unsigned int>(std::time(0))); // apenas uma vez
+
+            for (int i = 0; i < 20; ++i)
+            {
+                float x = 2.0f + std::rand() % 12;
+                float z = 105.0f + std::rand() % 100;
+                float y = 2.0f;
+
+                bunnyRandomPositions.push_back(glm::vec3(x, y, z));
+            }
+        }
+
+         for (const auto& pos : bunnyRandomPositions)
+        {
+            glm::mat4 model = Matrix_Translate(pos.x, pos.y, pos.z);
+            glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+            glUniform1i(g_object_id_uniform, BUNNY);
+            DrawVirtualObject("the_bunny");
+        }
+
+
+        // FONTE - retirado do Murilo Sterchile do semestre passado
+        glCullFace(GL_FRONT);
+        model = Matrix_Translate(camera_position_act.x, camera_position_act.y, camera_position_act.z);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, SPHERE);
+        glUniform1i(g_object_id_uniform, SKY);
+        glDisable(GL_DEPTH_TEST);
         DrawVirtualObject("the_sphere");
+        glEnable(GL_DEPTH_TEST);
+        glCullFace(GL_BACK);
+        // Fim FONTE
 
-        // Desenhamos o modelo do coelho
-        model = Matrix_Translate(1.0f,0.0f,0.0f)
-              * Matrix_Rotate_X(g_AngleX + (float)glfwGetTime() * 0.1f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BUNNY);
-        DrawVirtualObject("the_bunny");
-
-        // Desenhamos o plano do chão
-        model = Matrix_Translate(0.0f,-1.1f,0.0f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, PLANE);
-        DrawVirtualObject("the_plane");*/
-
-        model = Matrix_Translate(5.0f,2.0f,5.0f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BUNNY);
-        DrawVirtualObject("the_bunny");
-
-        model = Matrix_Translate(2.0f,2.0f,5.0f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BUNNY);
-        DrawVirtualObject("the_bunny");
-
-        model = Matrix_Translate(8.0f,2.0f,5.0f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BUNNY);
-        DrawVirtualObject("the_bunny");
-
-        model = Matrix_Translate(11.0f,2.0f,5.0f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BUNNY);
-        DrawVirtualObject("the_bunny");
-
-        // cubo
+        // mapa
         int gridSizeX = 15;
         int gridSizeZ = 250;
         float spacing = 1.0f;
-        int wallHeight = 3;
+        int wallHeight = 4;
 
 
+        //chao XZ
         for (int x = 0; x < gridSizeX; ++x) {
             for (int z = 0; z < gridSizeZ; ++z) {
-                glm::mat4 model = glm::mat4(1.0f); // <- reinicializa para identidade
+                glm::mat4 model = glm::mat4(1.0f);
 
                 model = glm::translate(model, glm::vec3(x * spacing, 0.0f, z * spacing));
 
@@ -508,6 +761,7 @@ int main(int argc, char* argv[])
                 glUniform1i(g_object_id_uniform, CUBEXZ);
                 DrawVirtualObject("the_cube");}}
 
+        // parede XZ
         for (int z = 0; z < gridSizeZ; ++z) {
             for (int y = 1; y <= wallHeight; ++y) {
                 // Parede da esquerda (X = 0)
@@ -526,6 +780,7 @@ int main(int argc, char* argv[])
             }
         }
 
+        //parede XY
         for (int k = 0; k < 13; ++k){
                 for(int j = 0; j < 3; ++j){
                 glm::mat4 modelWall = glm::mat4(1.0f);
@@ -536,16 +791,37 @@ int main(int argc, char* argv[])
                 }
         }
 
+        for (int k = 2; k < 11; ++k){
+            glm::mat4 modelWall = glm::mat4(1.0f);
+            modelWall = glm::translate(modelWall, glm::vec3((1.0f+k* spacing) ,(4.0f* spacing) ,(gridSizeZ* spacing)));
+            glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(modelWall));
+            glUniform1i(g_object_id_uniform, WALLXY);
+            DrawVirtualObject("the_cube");
+
+        }
+
+        // cubo teste
         model = Matrix_Translate(5.0f,1.0f,1.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, WALLXY);
         DrawVirtualObject("the_cube");
 
-        model = Matrix_Translate(monster_position_act.x,monster_position_act.y,monster_position_act.z)*Matrix_Scale(0.1f, 0.1f, -0.1f);
+        // monstro
+       model = Matrix_Translate(camera_position_act.x + me + md,
+                         camera_position_act.y,
+                         camera_position_act.z + 10)
+       * Matrix_Translate(0.0f, -2.5f, 0.0f)  // <- sobe o modelo sem afetar a lógica
+       * Matrix_Scale(0.1f, 0.1f, 0.1f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("monster");
 
+
+        //planeta
+        model = Matrix_Translate(bezierPosition.x, bezierPosition.y, bezierPosition.z);
+        glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, SPHERE);
+        DrawVirtualObject("the_sphere");
 
 
 
@@ -560,6 +836,8 @@ int main(int argc, char* argv[])
         // Imprimimos na tela informação sobre o número de quadros renderizados
         // por segundo (frames per second).
         TextRendering_ShowFramesPerSecond(window);
+
+        TextRendering_ShowTempo(window);
 
         // O framebuffer onde OpenGL executa as operações de renderização não
         // é o mesmo que está sendo mostrado para o usuário, caso contrário
@@ -717,6 +995,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4);
     glUseProgram(0);
 }
 
@@ -1186,30 +1465,33 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
     // Assim, temos que o usuário consegue controlar a câmera.
 
     if (g_LeftMouseButtonPressed)
+{
+    float dx = xpos - g_LastCursorPosX;
+    float dy = ypos - g_LastCursorPosY;
+
+    g_LastCursorPosX = xpos;
+    g_LastCursorPosY = ypos;
+
+    if (!g_FPressed)
     {
-        // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
-        float dx = xpos - g_LastCursorPosX;
-        float dy = ypos - g_LastCursorPosY;
+        // Modo câmera livre (FPS-style)
+        float sensitivity = 0.002f; // quanto mais alto, mais sensível
+        g_Yaw   += dx * sensitivity;
+        g_Pitch -= dy * sensitivity;
 
-        // Atualizamos parâmetros da câmera com os deslocamentos
-        g_CameraTheta -= 0.01f*dx;
-        g_CameraPhi   += 0.01f*dy;
+        // Limita pitch para evitar "flip"
+        float pitch_limit = glm::radians(89.0f);
+        if (g_Pitch > pitch_limit)  g_Pitch = pitch_limit;
+        if (g_Pitch < -pitch_limit) g_Pitch = -pitch_limit;
 
-        // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
-        float phimax = 3.141592f/2;
-        float phimin = -phimax;
-
-        if (g_CameraPhi > phimax)
-            g_CameraPhi = phimax;
-
-        if (g_CameraPhi < phimin)
-            g_CameraPhi = phimin;
-
-        // Atualizamos as variáveis globais para armazenar a posição atual do
-        // cursor como sendo a última posição conhecida do cursor.
-        g_LastCursorPosX = xpos;
-        g_LastCursorPosY = ypos;
+        glm::vec3 front;
+        front.x = cos(g_Pitch) * sin(g_Yaw);
+        front.y = sin(g_Pitch);
+        front.z = cos(g_Pitch) * cos(g_Yaw);
+        g_CameraFront = glm::normalize(front);
     }
+
+}
 
     if (g_RightMouseButtonPressed)
     {
@@ -1352,9 +1634,41 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         if (key == GLFW_KEY_D) g_DPressed = false;
     }
 
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_T) g_TPressed = true;
+    }
 
+    if (action == GLFW_RELEASE) {
+        if (key == GLFW_KEY_T) g_TPressed = false;
+    }
 
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_L){
+            g_LPressed = true;
+            g_FPressed = false;
+        }
 
+        if (key == GLFW_KEY_F){
+            g_LPressed = false;
+            g_FPressed = true;
+        }
+    }
+
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS){
+        g_SpacePressed = true;
+        std::cout << "Tecla ESPAÇO pressionada\n";
+    }
+
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT)
+            g_ShiftPressed = true;
+    }
+
+    if (action == GLFW_RELEASE) {
+        if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT)
+            std::cout << "Tecla Shift pressionada\n";
+            g_ShiftPressed = false;
+}
 
 
 }
@@ -1492,6 +1806,25 @@ void TextRendering_ShowFramesPerSecond(GLFWwindow* window)
 
     TextRendering_PrintString(window, buffer, 1.0f-(numchars + 1)*charwidth, 1.0f-lineheight, 1.0f);
 }
+
+void TextRendering_ShowTempo(GLFWwindow* window)
+{
+    if (!g_timerStarted)
+        return;
+
+    float pad = TextRendering_LineHeight(window);
+
+    g_tempoDecorrido = std::chrono::duration<float>(std::chrono::steady_clock::now() - g_startTime).count();
+
+    char buffer[80];
+    snprintf(buffer, 80, "Tempo: %.2f s", g_tempoDecorrido);
+
+    // Posição X: 1.0f - margem; Y: 1.0f - linha
+    // Fonte: 2.0f = maior
+    TextRendering_PrintString(window, buffer, +0.65f, +0.92f, 2.0f);
+}
+
+
 
 // Função para debugging: imprime no terminal todas informações de um modelo
 // geométrico carregado de um arquivo ".obj".

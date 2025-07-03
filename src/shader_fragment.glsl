@@ -26,6 +26,7 @@ uniform mat4 projection;
 #define CUBEXY 3
 #define CUBEXZ 4
 #define WALLXY 5
+#define SKY    6
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -37,6 +38,7 @@ uniform sampler2D TextureImage0;
 uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
+uniform sampler2D TextureImage4;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
@@ -96,8 +98,27 @@ void main()
 
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
 
-        U = 0.0;
-        V = 0.0;
+        float theta = atan(position_model.x, position_model.z);
+        float phi = asin(position_model.y);
+
+        U = (theta+M_PI)/(2*M_PI);
+        V = (phi+M_PI_2)/M_PI;
+
+    }
+    // FONTE - retirado do Murilo Sterchile do semestre passado
+    else if ( object_id == SKY )
+    {
+
+        vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
+
+        float theta = atan(position_model.x, position_model.z);
+        float phi = asin(position_model.y);
+
+        U = (theta+M_PI)/(2*M_PI);
+        V = (phi+M_PI_2)/M_PI;
+
+    // Fim FONTE
+
     }
     else if ( object_id == BUNNY )
     {
@@ -119,8 +140,8 @@ void main()
         float minz = bbox_min.z;
         float maxz = bbox_max.z;
 
-        U = 0.0;
-        V = 0.0;
+        U = (position_model.z - minz)/(maxz - minz);
+        V = (position_model.y - miny)/(maxy - miny);
     }
     else if ( object_id == PLANE )
     {
@@ -196,13 +217,26 @@ void main()
     else if (object_id == BUNNY)
     {
         Kd0 = texture(TextureImage2, vec2(U, V)).rgb;
-        Ks = vec3(0.8,0.8,0.8);
-        Ka = vec3(0.04,0.2,0.4);
-        q = 5.0;
+        Ks = vec3(0.0,0.0,0.0);
+        Ka = vec3(0.0,0.0,0.0);
+        q = 10.0;
     }
     else if (object_id == WALLXY)
     {
         Kd0 = texture(TextureImage3, vec2(U, V)).rgb;
+
+    }
+    else if (object_id == SPHERE)
+    {
+        Kd0 = texture(TextureImage0, vec2(U, V)).rgb;
+
+    }
+    else if (object_id == SKY)
+    {
+        Kd0 = vec3(1.0,1.0,1.0);
+        Ks = vec3(0.8,0.8,0.8);
+        Ka = texture(TextureImage4, vec2(U, V)).rgb;
+        q = 40.0;
 
     }
     else
@@ -236,9 +270,11 @@ void main()
 
     vec3 blinn_phong_specular_term  = Ks*I*max(0.0,pow(dot(n,normalize(v+l)) ,q));
 
-    color.rgb = Kd0 * (lambert + 0.01);
 
     if (object_id == BUNNY){
+        color.rgb = Kd0*(lambert_diffuse_term + ambient_term + phong_specular_term);
+    }
+    else if (object_id == SKY){
         color.rgb = Kd0*(lambert_diffuse_term + ambient_term + blinn_phong_specular_term);
     }
     else{
