@@ -113,6 +113,37 @@ struct ObjModel
     }
 };
 
+glm::vec3 GetModelBoundingBoxMin(const ObjModel& model)
+{
+    glm::vec3 min( std::numeric_limits<float>::max() );
+
+    const std::vector<float>& vertices = model.attrib.vertices;
+
+    for (size_t i = 0; i < vertices.size(); i += 3)
+    {
+        min.x = std::min(min.x, vertices[i + 0]);
+        min.y = std::min(min.y, vertices[i + 1]);
+        min.z = std::min(min.z, vertices[i + 2]);
+    }
+
+    return min;
+}
+
+glm::vec3 GetModelBoundingBoxMax(const ObjModel& model)
+{
+    glm::vec3 max(-std::numeric_limits<float>::max());
+
+    const std::vector<float>& vertices = model.attrib.vertices;
+
+    for (size_t i = 0; i < vertices.size(); i += 3)
+    {
+        max.x = std::max(max.x, vertices[i + 0]);
+        max.y = std::max(max.y, vertices[i + 1]);
+        max.z = std::max(max.z, vertices[i + 2]);
+    }
+
+    return max;
+}
 
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
@@ -150,6 +181,9 @@ void TextRendering_ShowEulerAngles(GLFWwindow* window);
 void TextRendering_ShowProjection(GLFWwindow* window);
 void TextRendering_ShowFramesPerSecond(GLFWwindow* window);
 void TextRendering_ShowTempo(GLFWwindow* window);
+void TextRendering_ShowVidas(GLFWwindow* window);
+void TextRendering_ShowVictoryMessage(GLFWwindow* window);
+
 
 // Funções callback para comunicação com o sistema operacional e interação do
 // usuário. Veja mais comentários nas definições das mesmas, abaixo.
@@ -239,7 +273,12 @@ bool g_IsJumping = false;
 float g_VelocidadeVertical = 0.0f;
 bool g_timerStarted = false;
 float g_tempoDecorrido = 0.0f;
+int g_vidas = 3;
+bool g_gameOver = false;
 std::chrono::steady_clock::time_point g_startTime;
+bool g_won = false;
+std::chrono::steady_clock::time_point g_endTime;
+bool g_timerStopped = false;
 
 
 
@@ -355,6 +394,10 @@ int main(int argc, char* argv[])
     ComputeNormals(&bunnymodel);
     BuildTrianglesAndAddToVirtualScene(&bunnymodel);
 
+    glm::vec3 bunnyMinModel = GetModelBoundingBoxMin(bunnymodel);
+    glm::vec3 bunnyMaxModel = GetModelBoundingBoxMax(bunnymodel);
+
+
     ObjModel planemodel("../../data/plane.obj");
     ComputeNormals(&planemodel);
     BuildTrianglesAndAddToVirtualScene(&planemodel);
@@ -366,6 +409,10 @@ int main(int argc, char* argv[])
     ObjModel monstermodel("../../data/alien.obj");
     ComputeNormals(&monstermodel);
     BuildTrianglesAndAddToVirtualScene(&monstermodel);
+
+    glm::vec3 monsterMinModel = GetModelBoundingBoxMin(monstermodel);
+    glm::vec3 monsterMaxModel = GetModelBoundingBoxMax(monstermodel);
+
 
     std::vector<glm::vec3> controlPoints = {
         glm::vec3(2.0f, 3.0f, 270.0f),    // Início
@@ -511,10 +558,19 @@ int main(int argc, char* argv[])
 
         // COMEÇO COLISOES
 
+
+
+
+
         // Colisão paredes cubo-cubo
-        glm::vec3 bonecoPos = glm::vec3(camera_position_act);
-        glm::vec3 bonecoMin = bonecoPos - glm::vec3(0.5f);
-        glm::vec3 bonecoMax = bonecoPos + glm::vec3(0.5f);
+        // Bounding box do monstro
+        glm::vec3 monsterPos = glm::vec3(camera_position_act.x + me + md,
+                                         camera_position_act.y - 2.5f,
+                                         camera_position_act.z + 10);
+
+        glm::vec3 monsterMin = monsterPos - glm::vec3(0.5f, 0.0f, 0.5f);
+        glm::vec3 monsterMax = monsterPos + glm::vec3(0.5f, 2.0f, 0.5f);
+
 
 
         glm::vec3 paredeMin = glm::vec3(13.0f, 0.0f, 0.0f);
@@ -524,7 +580,8 @@ int main(int argc, char* argv[])
             glm::vec3 paredeMin = glm::vec3(0.0f, 0.0f, 0.0f);
             glm::vec3 paredeMax = glm::vec3(1.5f, 4.0f, 250.0f);
 
-            if (AABBvsAABB(bonecoMin, bonecoMax, paredeMin, paredeMax))
+            if (AABBvsAABB(monsterMin, monsterMax, paredeMin, paredeMax))
+
             {
 
                 camera_position_act.x = paredeMax.x + 0.5f;
@@ -535,40 +592,33 @@ int main(int argc, char* argv[])
             glm::vec3 paredeMin = glm::vec3(13.5f, 0.0f, 0.0f);
             glm::vec3 paredeMax = glm::vec3(15.0f, 4.0f, 250.0f);
 
-            if (AABBvsAABB(bonecoMin, bonecoMax, paredeMin, paredeMax))
+            if (AABBvsAABB(monsterMin, monsterMax, paredeMin, paredeMax))
+
             {
 
                 camera_position_act.x = paredeMin.x - 0.5f;
             }
         }
 
-
-        // Colisão chão cubo-plano
-        float alturaChao = 3.0f;
-        float alturaBoneco = 1.0f;
-        float gravidade = 25.0f;
-        float forcaPulo = 9.0f;
-
-        float centroY = camera_position_act.y;
-        bool noChao = AABBvsPlane(bonecoMin, bonecoMax, alturaChao);
-
-        if (g_SpacePressed && noChao && !g_IsJumping)
+                // início do mapa
         {
-            g_VelocidadeVertical = forcaPulo;
-            g_IsJumping = true;
-        }
-        g_SpacePressed = false;
+            glm::vec3 paredeMin = glm::vec3(0.0f, 0.0f, 0.0f);
+            glm::vec3 paredeMax = glm::vec3(15.0f, 4.0f, 1.0f);
 
-        if (g_IsJumping)
-        {
-            g_VelocidadeVertical -= gravidade * delta;
-            camera_position_act.y += g_VelocidadeVertical * delta;
-
-            if (camera_position_act.y < alturaChao + alturaBoneco / 2.0f)
+            if (AABBvsAABB(monsterMin, monsterMax, paredeMin, paredeMax))
             {
-                camera_position_act.y = alturaChao + alturaBoneco / 2.0f;
-                g_VelocidadeVertical = 0.0f;
-                g_IsJumping = false;
+                camera_position_act.z = paredeMax.z + 0.5f - 10.0f;
+            }
+        }
+
+        //fim do mapa
+        {
+            glm::vec3 paredeMin = glm::vec3(0.0f, 0.0f, 249.0f);
+            glm::vec3 paredeMax = glm::vec3(15.0f, 4.0f, 250.0f);
+
+            if (AABBvsAABB(monsterMin, monsterMax, paredeMin, paredeMax))
+            {
+                camera_position_act.z = paredeMin.z - 0.5f - 10.0f;
             }
         }
 
@@ -576,13 +626,6 @@ int main(int argc, char* argv[])
         float boxSizeX = 1.0f;
         float boxSizeY = 2.0f;
         float boxSizeZ = 1.0f;
-
-        glm::vec3 monsterPos = glm::vec3(camera_position_act.x + me + md,
-                                         camera_position_act.y - 2.5f,
-                                         camera_position_act.z + 10);
-
-        glm::vec3 monsterMin = monsterPos - glm::vec3(boxSizeX/2.0f, 0.0f, boxSizeZ/2.0f);
-        glm::vec3 monsterMax = monsterPos + glm::vec3(boxSizeX/2.0f, boxSizeY, boxSizeZ/2.0f);
 
         // posições das 8 caixas iniciais
         std::vector<glm::vec3> boxPositions;
@@ -599,56 +642,85 @@ int main(int argc, char* argv[])
             glm::vec3 boxMin = pos - glm::vec3(boxSizeX/2.0f, 0.0f, boxSizeZ/2.0f);
             glm::vec3 boxMax = pos + glm::vec3(boxSizeX/2.0f, boxSizeY, boxSizeZ/2.0f);
 
-            if (AABBvsAABB(monsterMin, monsterMax, boxMin, boxMax))
+         if (AABBvsAABB(monsterMin, monsterMax, boxMin, boxMax))
+        {
+            me = 0.0f;
+            md = 0.0f;
+
+            if (monsterPos.z < boxMin.z)
             {
-                std::cout << "MONSTRO colidiu com CAIXA fixa em: " << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
-                me = 0.0f;
-                md = 0.0f;
-                camera_position_act.z -= 1.0f;
+                camera_position_act.z = boxMin.z - 0.5f - 10.0f;
             }
-        }
+
+            else if (monsterPos.z > boxMax.z)
+            {
+                camera_position_act.z = boxMax.z + 0.5f - 10.0f;
+            }
+
+        }}
 
         //Colisão coelhos
-        float bunnySizeX = 1.0f;
-        float bunnySizeY = 2.0f;
-        float bunnySizeZ = 1.0f;
 
-        // Coelhos aleatórios
-        for (const auto& pos : bunnyRandomPositions)
+        glm::vec3 bunnyScale = glm::vec3(1.5f);
+
+        for (size_t i = 0; i < bunnyRandomPositions.size(); ++i)
         {
-            glm::vec3 bunnyMin = pos - glm::vec3(bunnySizeX/2.0f, 0.0f, bunnySizeZ/2.0f);
-            glm::vec3 bunnyMax = pos + glm::vec3(bunnySizeX/2.0f, bunnySizeY, bunnySizeZ/2.0f);
+            glm::vec3 pos = bunnyRandomPositions[i];
+            glm::vec3 bunnyMin = pos + bunnyMinModel * bunnyScale;
+            glm::vec3 bunnyMax = pos + bunnyMaxModel * bunnyScale;
 
-            if (AABBvsAABB(monsterMin, monsterMax, bunnyMin, bunnyMax))
+            if (!g_gameOver && AABBvsAABB(monsterMin, monsterMax, bunnyMin, bunnyMax))
             {
+                g_vidas--;
                 std::cout << "MONSTRO colidiu com coelho aleatório em: " << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
+                std::cout << "Vidas restantes: " << g_vidas << std::endl;
+
+                bunnyRandomPositions.erase(bunnyRandomPositions.begin() + i);
+
                 me = 0.0f;
                 md = 0.0f;
-                camera_position_act.z -= 1.0f;
+                camera_position_act.z -= 2.0f;
+
+                if (g_vidas <= 0)
+                {
+                    g_gameOver = true;
+                    // Reinicia tudo
+                    g_vidas = 3;
+                    g_gameOver = false;
+                    me = md = 0.0f;
+                    camera_position_act = glm::vec4(7.5f, 4.0f, 95.0f, 1.0f);
+                    g_timerStarted = false;
+                }
+
+                break;
             }
         }
 
-        std::cout << "Z do monstro: " << monsterPos.z << std::endl;
+
+        //std::cout << "Z do monstro: " << monsterPos.z << std::endl;
+
+        glm::vec3 planetCenter = glm::vec3(7.5f, 3.0f, 240.0f);
+        float planetRadius = 1.4f;
+
+        if (AABBvsSphere(monsterMin, monsterMax, planetCenter, planetRadius) && !g_timerStopped)
+        {
+            g_timerStopped = true;
+            g_endTime = std::chrono::steady_clock::now();
+        }
 
 
-        float triggerPlaneY = 2.0f; // mesma altura Y das caixas e do monstro
-        float triggerPlaneZ = 101.0f; // levemente atrás das caixas
+        float triggerPlaneY = 2.0f;
+        float triggerPlaneZ = 101.0f;
         float triggerPlaneXMin = 1.5f;
         float triggerPlaneXMax = 14.5f;
 
         if (!g_timerStarted &&
-            AABBvsPlane(monsterMin, monsterMax, triggerPlaneY) && // colisão no eixo Y
+            AABBvsPlane(monsterMin, monsterMax, triggerPlaneY) &&
             monsterMin.z >= triggerPlaneZ) // passou do plano invisível (no eixo Z)
         {
             g_timerStarted = true;
             g_startTime = std::chrono::steady_clock::now();
-            std::cout << "Cronômetro iniciado!\n";
         }
-
-
-
-
-
 
         // Agora computamos a matriz de Projeção.
         glm::mat4 projection;
@@ -695,41 +767,6 @@ int main(int argc, char* argv[])
         #define WALLXY 5
         #define SKY    6
 
-
-        // caixas iniciais
-        for (int i = 0; i < 8; ++i)
-        {
-            float x = 2.0f + i * 1.5f; // Espaçamento entre caixas
-            float y = 2.0f + t;        // Altura base (fixa)
-            float z = 100.0f;
-
-            model = Matrix_Translate(x, y, z);
-            glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-            glUniform1i(g_object_id_uniform, WALLXY);
-            DrawVirtualObject("the_cube");
-        }
-
-
-        if (bunnyRandomPositions.empty()) {
-            std::srand(static_cast<unsigned int>(std::time(0))); // apenas uma vez
-
-            for (int i = 0; i < 20; ++i)
-            {
-                float x = 2.0f + std::rand() % 12;
-                float z = 105.0f + std::rand() % 100;
-                float y = 2.0f;
-
-                bunnyRandomPositions.push_back(glm::vec3(x, y, z));
-            }
-        }
-
-         for (const auto& pos : bunnyRandomPositions)
-        {
-            glm::mat4 model = Matrix_Translate(pos.x, pos.y, pos.z);
-            glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-            glUniform1i(g_object_id_uniform, BUNNY);
-            DrawVirtualObject("the_bunny");
-        }
 
 
         // FONTE - retirado do Murilo Sterchile do semestre passado
@@ -800,6 +837,20 @@ int main(int argc, char* argv[])
 
         }
 
+        // caixas iniciais
+        for (int i = 0; i < 8; ++i)
+        {
+            float x = 2.0f + i * 1.5f;
+            float y = 2.0f + t;
+            float z = 100.0f;
+
+            model = Matrix_Translate(x, y, z);
+            glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+            glUniform1i(g_object_id_uniform, WALLXY);
+            DrawVirtualObject("the_cube");
+        }
+
+
         // cubo teste
         model = Matrix_Translate(5.0f,1.0f,1.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -810,11 +861,32 @@ int main(int argc, char* argv[])
        model = Matrix_Translate(camera_position_act.x + me + md,
                          camera_position_act.y,
                          camera_position_act.z + 10)
-       * Matrix_Translate(0.0f, -2.5f, 0.0f)  // <- sobe o modelo sem afetar a lógica
+       * Matrix_Translate(0.0f, -2.5f, 0.0f)
        * Matrix_Scale(0.1f, 0.1f, 0.1f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, BUNNY);
         DrawVirtualObject("monster");
+
+        // coelhos aleatórios
+        if (bunnyRandomPositions.empty()) {
+            std::srand(static_cast<unsigned int>(std::time(0)));
+            for (int i = 0; i < 20; ++i)
+            {
+                float x = 2.0f + std::rand() % 12;
+                float z = 105.0f + std::rand() % 100;
+                float y = 2.0f;
+
+                bunnyRandomPositions.push_back(glm::vec3(x, y, z));
+            }
+        }
+
+         for (const auto& pos : bunnyRandomPositions)
+        {
+            glm::mat4 model = Matrix_Translate(pos.x, pos.y, pos.z);
+            glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+            glUniform1i(g_object_id_uniform, BUNNY);
+            DrawVirtualObject("the_bunny");
+        }
 
 
         //planeta
@@ -823,6 +895,20 @@ int main(int argc, char* argv[])
         glUniform1i(g_object_id_uniform, SPHERE);
         DrawVirtualObject("the_sphere");
 
+        // planeta no fim do mapa
+
+        float planetaX = gridSizeX / 2.0f;
+        float planetaY = 3.0f;
+        float planetaZ = gridSizeZ - 10.0f;
+
+        glm::mat4 modelPlaneta = Matrix_Translate(planetaX, planetaY, planetaZ);
+        glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(modelPlaneta));
+        glUniform1i(g_object_id_uniform, SPHERE);
+        DrawVirtualObject("the_sphere");
+
+
+
+        TextRendering_ShowVictoryMessage(window);
 
 
 
@@ -838,6 +924,7 @@ int main(int argc, char* argv[])
         TextRendering_ShowFramesPerSecond(window);
 
         TextRendering_ShowTempo(window);
+        TextRendering_ShowVidas(window);
 
         // O framebuffer onde OpenGL executa as operações de renderização não
         // é o mesmo que está sendo mostrado para o usuário, caso contrário
@@ -1654,11 +1741,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         }
     }
 
-    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS){
-        g_SpacePressed = true;
-        std::cout << "Tecla ESPAÇO pressionada\n";
-    }
-
     if (action == GLFW_PRESS) {
         if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT)
             g_ShiftPressed = true;
@@ -1666,7 +1748,7 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 
     if (action == GLFW_RELEASE) {
         if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT)
-            std::cout << "Tecla Shift pressionada\n";
+            //std::cout << "Tecla Shift pressionada\n";
             g_ShiftPressed = false;
 }
 
@@ -1814,16 +1896,37 @@ void TextRendering_ShowTempo(GLFWwindow* window)
 
     float pad = TextRendering_LineHeight(window);
 
-    g_tempoDecorrido = std::chrono::duration<float>(std::chrono::steady_clock::now() - g_startTime).count();
+    float tempoFinal = g_timerStopped
+        ? std::chrono::duration<float>(g_endTime - g_startTime).count()
+        : std::chrono::duration<float>(std::chrono::steady_clock::now() - g_startTime).count();
+
+    g_tempoDecorrido = tempoFinal;
 
     char buffer[80];
     snprintf(buffer, 80, "Tempo: %.2f s", g_tempoDecorrido);
 
-    // Posição X: 1.0f - margem; Y: 1.0f - linha
-    // Fonte: 2.0f = maior
     TextRendering_PrintString(window, buffer, +0.65f, +0.92f, 2.0f);
 }
 
+
+void TextRendering_ShowVidas(GLFWwindow* window)
+{
+    float pad = TextRendering_LineHeight(window);
+    char buffer[50];
+    snprintf(buffer, 50, "Vidas: %d", g_vidas);
+    TextRendering_PrintString(window, buffer, -0.98f, +0.92f, 1.5f);
+}
+
+void TextRendering_ShowVictoryMessage(GLFWwindow* window)
+{
+    if (!g_timerStopped)
+        return;
+
+    float y = 0.0f;
+    float x = -0.5f;
+
+    TextRendering_PrintString(window, "VOCE GANHOU!", x, y, 3.0f);
+}
 
 
 // Função para debugging: imprime no terminal todas informações de um modelo
