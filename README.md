@@ -43,9 +43,18 @@ Curva de Bézier cúbica no fim do mapa.
 ### Animações
 Animações baseadas no tempo da curva de Bézier, monstro e obstáculos cúbicos.
 
+
+## Imagens do jogo
+![image](https://github.com/user-attachments/assets/e217ed44-b29b-45d1-bac7-08ffa6b0f262)
+![image](https://github.com/user-attachments/assets/b1fdd056-37de-4509-8eb0-8a12a13cd47e)
+
+
 ### Manual 
 W, A, S, D -> Movimentações do monstro<br>
 T -> Movimentação das caixas (movimentação vertical)<br>
 F, L -> Mudança de câmera  <Br>
 Shift -> Aumenta velocidade do monstro<br>
 Botão esquerdo mouse -> Muda a direção da câmera livre<br>
+
+### Execução 
+Para rodar o Compilado Binário, ir até a pasta 'FCG-TrabalhoFinal\bin\Debug'. Ali voce vai encontrar o arquivo main.exe, só clicar que o jogo irá abrir
