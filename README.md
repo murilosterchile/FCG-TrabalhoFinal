@@ -23,15 +23,25 @@ ele não se integrava corretamente com o restante do código na maioria das veze
 
 No desenvolvimento, separamos alguns requisitos para cada um, e fomos adaptando conforme as necessidades que surgiram, então ambos contribuíram ao menos um pouco para cada requisito
 ### Malhas
+Objetos como: Monstro, coelho, cubo, esfera.
 ### Transformações geométricas
+Movimentação da câmera, personagem(monstro), obstáculos cúbicos. Esfera na movimentação de bezier, planeta e sky-box.
 ### Câmeras
+Implementação da câmera livre e look-at.
 ### Instâncias
+Cubos foram utilizados para fazer o chão, parede e obstáculos.
 ### Intersecção
+Foram implemetadas as seguintes colisões: cubo-cubo, cubo-plano, cubo-esfera
 ### Interpolação
+Aplicação da interpolação de Blinn-Phong no sky-box.
 ### Iluminação
+Iluminação difusa em objetos como chão, parede, obtáculo cúbico, planeta etc. Iluminação de phong aplicada nos coelhos e monstro.
 ### Texturas
+Aplicação de textura em todos os objetos, de forma que haja pouca ou nenhuma distorção. Foram utilizadas quatro texturas distintas.
 ### Bézier
+Curva de Bézier cúbica no fim do mapa.
 ### Animações
+Animações baseadas no tempo da curva de Bézier, monstro e obstáculos cúbicos.
 
 ### Manual 
 W, A, S, D -> Movimentações do monstro<br>
